@@ -61,103 +61,12 @@
   <!-- External Services -->
   <script src="https://js.puter.com/v2/"></script>
 
-  <!-- DAWN Modular Components -->
-  <script src="services/html-components/dawn-device-detect.js"></script>
-  <script src="services/html-components/dawn-storage.js"></script>
-  <script src="services/html-components/dawn-local-apis.js"></script>
-  <script src="services/html-components/dawn-procedural-art.js"></script>
+  <!-- DAWN HTML Components (existing files) -->
+  <script src="pc/device-detect.js"></script>
+  <script src="pc/storage.js"></script>
+  <script src="pc/local-apis.js"></script>
 
   <!-- Core Bootstrap -->
-  <script>
-  (async () => {
-    const BUCKET = 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn';
-    const bar = document.getElementById('load-bar');
-    const status = document.getElementById('load-status');
-    const loader = document.getElementById('dawn-loader');
-    const modeSelect = document.getElementById('dawn-mode-select');
-    const btnBack = document.getElementById('btn-back');
-    const btnOnline = document.getElementById('btn-online');
-    const btnLocal = document.getElementById('btn-local');
-
-    const setBar = pct => { bar.style.width = pct + '%'; };
-    const setStatus = text => { status.textContent = text; };
-    
-    function clearErrors() {
-      document.querySelectorAll('#dawn-loader .err').forEach(e => e.remove());
-    }
-    function showError(msg) {
-      console.error('[DAWN bootstrap]', msg);
-      clearErrors();
-      setStatus('');
-      const d = document.createElement('div');
-      d.className = 'err';
-      d.textContent = '❌ ' + msg;
-      loader.appendChild(d);
-      bar.style.background = '#c04040';
-    }
-    function injectScript(text) {
-      const el = document.createElement('script');
-      el.textContent = text;
-      document.head.appendChild(el);
-    }
-
-    let _abort = null;
-    btnBack.addEventListener('click', () => {
-      if (_abort) { _abort.abort(); _abort = null; }
-    });
-
-    // Main bootstrap loop
-    while (true) {
-      // Reset to title state
-      clearErrors();
-      bar.style.background = '#c0a040';
-      btnBack.style.display = 'none';
-      setBar(5);
-      setStatus('Choose play mode…');
-      modeSelect.style.display = 'flex';
-
-      // Wait for mode choice
-      const mode = await new Promise(resolve => {
-        btnOnline.onclick = () => resolve('online');
-        btnLocal.onclick  = () => resolve('local');
-      });
-      
-      modeSelect.style.display = 'none';
-      btnBack.style.display = '';
-      _abort = new AbortController();
-      const { signal } = _abort;
-
-      try {
-        if (mode === 'local') {
-          setBar(20); setStatus('Loading local script…');
-          // Load all modules locally
-          const modules = [
-            'services/game-engine/dawn-config.js',
-            'services/hardware-detection/device-features.js',
-            'services/hardware-detection/device-supabase.js'
-          ];
-          for (const [i, module] of modules.entries()) {
-            setBar(20 + (i / modules.length) * 60);
-            setStatus('Loading ' + module + '…');
-            try {
-              const res = await fetch('./' + module);
-              if (!res.ok) throw new Error(module + ' → HTTP ' + res.status);
-              injectScript(await res.text());
-            } catch (e) {
-              console.warn('Failed to load:', module, e);
-            }
-          }
-          setBar(100);
-        } else {
-          // Online mode - existing logic
-          window.location.reload();
-        }
-        break;
-      } catch (e) {
-        if (e.name !== 'AbortError') showError('Load failed: ' + e.message);
-      }
-    }
-  })();
-  </script>
+  <script src="dawn-loader.js"></script>
 </body>
 </html>
