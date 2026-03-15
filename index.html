@@ -1,0 +1,1785 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="theme-color" content="#040308"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <title>DAWN · AI RPG Chronicles</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body,#root{height:100%;height:100dvh;overflow:hidden;background:#040308}
+    body{-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+    #dawn-loader{
+      position:fixed;inset:0;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;background:#040308;
+      font-family:'Georgia',serif;color:#c0a040;gap:18px;z-index:9999;
+    }
+    #dawn-loader-bg{
+      position:absolute;inset:0;z-index:-1;width:100%;height:100%;
+    }
+    #dawn-loader h1{font-size:28px;letter-spacing:6px;color:#e8c060;}
+    #dawn-loader .bar-wrap{width:280px;height:4px;background:#1a1408;border-radius:2px;}
+    #dawn-loader .bar{height:4px;background:#c0a040;border-radius:2px;width:0%;transition:width 0.3s;}
+    #dawn-loader .status{font-size:11px;color:#6a5020;letter-spacing:2px;text-transform:uppercase;}
+    #dawn-loader .err{color:#c04040;font-size:12px;max-width:320px;text-align:center;line-height:1.6;}
+    #dawn-mode-select{display:none;flex-direction:row;gap:16px;margin-top:6px;}
+    .dawn-mode-btn{
+      padding:10px 28px;border:1px solid #c0a040;background:transparent;
+      color:#e8c060;font-family:'Georgia',serif;font-size:13px;letter-spacing:2px;
+      text-transform:uppercase;cursor:pointer;border-radius:2px;transition:background .2s,color .2s;
+    }
+    .dawn-mode-btn:hover{background:#c0a040;color:#040308;}
+    #btn-back{
+      display:none;position:absolute;top:24px;left:24px;
+      padding:7px 18px;border:1px solid #6a5020;background:transparent;
+      color:#6a5020;font-family:'Georgia',serif;font-size:11px;letter-spacing:2px;
+      text-transform:uppercase;cursor:pointer;border-radius:2px;
+      transition:border-color .2s,color .2s;
+    }
+    #btn-back:hover{border-color:#c0a040;color:#e8c060;}
+  </style>
+</head>
+<body>
+  <div id="dawn-loader">
+    <div id="dawn-loader-bg"></div>
+    <button id="btn-back">← Title</button>
+    <h1>DAWN</h1>
+    <div class="bar-wrap"><div class="bar" id="load-bar"></div></div>
+    <div class="status" id="load-status">Initializing…</div>
+    <div id="dawn-mode-select">
+      <button class="dawn-mode-btn" id="btn-online">▶ Play Online</button>
+      <button class="dawn-mode-btn" id="btn-local">⬡ Play Local</button>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <!-- Puter.js — primary AI + cloud layer (user-pays, no API keys required) -->
+  <script src="https://js.puter.com/v2/"></script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       1️⃣  UNIFIED PROCEDURAL ART
+       Canvas animated vortex (loader bg) + SVG typed scene art
+       generateProceduralArt(containerId, type?)
+         type = undefined | 'vortex'   → animated Canvas vortex
+         type = 'landscape'            → SVG night-sky scene
+         type = 'portrait'             → SVG mage portrait
+         type = 'map'                  → SVG arcane world map
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  // ── Canvas animated vortex ────────────────────────────────────
+  window._dawnVortexRAF = null;
+
+  window.startVortex = function(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    Object.assign(canvas.style, { position:'absolute', inset:'0', width:'100%', height:'100%' });
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const particles = [];
+    let time = 0;
+
+    window._dawnVortexResizeHandler = () => {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', window._dawnVortexResizeHandler);
+
+    class Particle {
+      constructor() { this.reset(); }
+      reset() {
+        this.x  = Math.random() * canvas.width;
+        this.y  = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.size    = Math.random() * 3 + 1;
+        this.opacity = Math.random() * 0.7 + 0.3;
+        this.hue     = 50 + Math.random() * 30;
+      }
+      update() {
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const angle = Math.atan2(cy - this.y, cx - this.x);
+        const speed = 0.02;
+        this.vx += Math.cos(angle + time * 0.05) * speed;
+        this.vy += Math.sin(angle + time * 0.05) * speed;
+        this.vx *= 0.98; this.vy *= 0.98;
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0) this.x = canvas.width;
+        if (this.x > canvas.width) this.x = 0;
+        if (this.y < 0) this.y = canvas.height;
+        if (this.y > canvas.height) this.y = 0;
+      }
+      draw() {
+        ctx.fillStyle = `hsla(${this.hue},100%,60%,${this.opacity})`;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = `hsla(${this.hue},100%,70%,${this.opacity * 0.5})`;
+        ctx.lineWidth = this.size * 2;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size + 2, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    for (let i = 0; i < 300; i++) particles.push(new Particle());
+
+    function animate() {
+      time++;
+      ctx.fillStyle = '#0a0505';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const grad = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, 0,
+        canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height)
+      );
+      grad.addColorStop(0, 'rgba(45,27,78,0.3)');
+      grad.addColorStop(1, 'rgba(10,5,5,0.5)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => { p.update(); p.draw(); });
+      window._dawnVortexRAF = requestAnimationFrame(animate);
+    }
+    animate();
+  };
+
+  window.stopVortex = function() {
+    if (window._dawnVortexRAF) {
+      cancelAnimationFrame(window._dawnVortexRAF);
+      window._dawnVortexRAF = null;
+    }
+    if (window._dawnVortexResizeHandler) {
+      window.removeEventListener('resize', window._dawnVortexResizeHandler);
+      window._dawnVortexResizeHandler = null;
+    }
+    const canvas = document.querySelector('#dawn-loader-bg canvas');
+    if (canvas) canvas.remove();
+  };
+
+  // ── SVG typed scene art ───────────────────────────────────────
+  window.generateSVGArt = function(containerId, type) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const NS  = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.setAttribute('viewBox', '0 0 1920 1080');
+    svg.style.background = 'radial-gradient(ellipse at 30% 40%, #2d1b4e 0%, #1a0f2e 50%, #0a0505 100%)';
+
+    const defs = document.createElementNS(NS, 'defs');
+    const filter = document.createElementNS(NS, 'filter');
+    filter.setAttribute('id', 'glow');
+    filter.innerHTML = '<feGaussianBlur stdDeviation="4" result="coloredBlur"/>'
+      + '<feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>';
+    defs.appendChild(filter);
+    svg.appendChild(defs);
+
+    // Helper: create + attach an SVG element with attributes
+    function mk(tag, attrs, parent) {
+      const el = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+      (parent || svg).appendChild(el);
+      return el;
+    }
+
+    if (type === 'landscape') {
+      for (let i = 0; i < 200; i++)
+        mk('circle', { cx: Math.random()*1920, cy: Math.random()*1080,
+          r: Math.random()*2+0.5, fill: `rgba(255,220,100,${(Math.random()*.8+.2).toFixed(2)})` });
+      for (let i = 0; i < 5; i++)
+        mk('circle', { cx: Math.random()*1920, cy: Math.random()*600,
+          r: 50+Math.random()*150,
+          fill: `rgba(${(100+Math.random()*155)|0},${(50+Math.random()*150)|0},255,0.1)`,
+          filter: 'url(#glow)' });
+      mk('polygon', { points: '400,800 500,600 600,700 700,500 800,650 900,550 1000,700 1100,600 1200,750',
+        fill: 'rgba(0,0,0,0.6)' });
+    }
+
+    if (type === 'portrait') {
+      for (let j = 0; j < 3; j++)
+        mk('circle', { cx: 400, cy: 500, r: 200+j*80, fill: 'none',
+          stroke: `rgba(${150+j*20},${100+j*30},255,${(.3-j*.1).toFixed(2)})`,
+          'stroke-width': 30, filter: 'url(#glow)' });
+
+      const headDefs = document.createElementNS(NS, 'defs');
+      const grad = document.createElementNS(NS, 'linearGradient');
+      grad.setAttribute('id', 'headGrad');
+      grad.innerHTML = '<stop offset="0%" style="stop-color:#5a3080;stop-opacity:1"/>'
+        + '<stop offset="100%" style="stop-color:#2d1540;stop-opacity:1"/>';
+      headDefs.appendChild(grad);
+      svg.appendChild(headDefs);
+
+      mk('ellipse', { cx: 400, cy: 450, rx: 120, ry: 160, fill: 'url(#headGrad)' });
+      for (const ox of [-60, 60])
+        mk('circle', { cx: 400+ox, cy: 420, r: 25, fill: 'rgba(100,255,200,0.9)', filter: 'url(#glow)' });
+      mk('polygon', { points: '250,250 400,150 550,250 450,280 400,220 350,280',
+        fill: 'rgba(255,200,0,0.4)', filter: 'url(#glow)' });
+    }
+
+    if (type === 'map') {
+      for (let i = 0; i < 1920; i += 240)
+        mk('line', { x1: i, y1: 0, x2: i, y2: 1080, stroke: 'rgba(200,150,50,0.1)', 'stroke-width': 1 });
+      for (let i = 0; i < 12; i++)
+        mk('circle', { cx: Math.random()*1800+60, cy: Math.random()*900+90, r: 30,
+          fill: `rgba(${(100+Math.random()*155)|0},${(100+Math.random()*155)|0},255,0.2)`,
+          filter: 'url(#glow)' });
+      for (let i = 0; i < 3; i++) {
+        const x1=Math.random()*1920, y1=Math.random()*1080;
+        mk('line', { x1, y1, x2: x1+(Math.random()-.5)*800, y2: y1+(Math.random()-.5)*800,
+          stroke: 'rgba(200,150,50,0.15)', 'stroke-width': 2 });
+      }
+    }
+
+    container.appendChild(svg);
+  };
+
+  // ── Unified dispatcher ────────────────────────────────────────
+  window.generateProceduralArt = function(containerId, type) {
+    if (!type || type === 'vortex') {
+      window.startVortex(containerId);
+    } else {
+      window.generateSVGArt(containerId, type);
+    }
+  };
+  </script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       2️⃣  DAWN STORAGE SERVICE
+       • localStorage  — fast, small (settings, flags, timestamps)
+       • IndexedDB     — large structured data (game state, images,
+                         logs, assets) persisted across sessions
+       • File export / import — full save to / load from device disk
+       • Access log    — timestamped event ring buffer (≤1000 rows)
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  window.DAWNStorage = (() => {
+    const LS_PFX  = 'dawn_';
+    const DB_NAME = 'DAWN_DB';
+    const DB_VER  = 1;
+    const STORES  = ['game_state', 'images', 'settings', 'logs', 'assets'];
+
+    // ── IndexedDB ──────────────────────────────────────────────
+    let _db = null;
+    function openDB() {
+      return new Promise((res, rej) => {
+        if (_db) return res(_db);
+        const req = indexedDB.open(DB_NAME, DB_VER);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          STORES.forEach(s => { if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'key' }); });
+        };
+        req.onsuccess = e => { _db = e.target.result; res(_db); };
+        req.onerror   = e => rej(e.target.error);
+      });
+    }
+
+    async function idbSet(store, key, value) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put({ key, value, updated: Date.now() });
+        tx.oncomplete = () => res(true);
+        tx.onerror    = e => rej(e.target.error);
+      });
+    }
+    async function idbGet(store, key) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const req = db.transaction(store).objectStore(store).get(key);
+        req.onsuccess = () => res(req.result ? req.result.value : null);
+        req.onerror   = e => rej(e.target.error);
+      });
+    }
+    async function idbGetAll(store) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const req = db.transaction(store).objectStore(store).getAll();
+        req.onsuccess = () => res(req.result || []);
+        req.onerror   = e => rej(e.target.error);
+      });
+    }
+    async function idbDel(store, key) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = () => res(true);
+        tx.onerror    = e => rej(e.target.error);
+      });
+    }
+    async function idbClear(store) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).clear();
+        tx.oncomplete = () => res(true);
+        tx.onerror    = e => rej(e.target.error);
+      });
+    }
+
+    // ── localStorage helpers (fast, small data) ────────────────
+    const ls = {
+      set(key, value)  { try { localStorage.setItem(LS_PFX+key, JSON.stringify({ v: value, t: Date.now() })); return true; } catch { return false; } },
+      get(key)         { try { const d = JSON.parse(localStorage.getItem(LS_PFX+key)); return d ? d.v : null; } catch { return null; } },
+      del(key)         { try { localStorage.removeItem(LS_PFX+key); } catch {} },
+      keys()           { return Object.keys(localStorage).filter(k => k.startsWith(LS_PFX)).map(k => k.slice(LS_PFX.length)); },
+      snapshot()       { return ls.keys().reduce((o, k) => { o[k] = ls.get(k); return o; }, {}); },
+    };
+
+    // ── Access log (ring buffer, capped at 1000 entries) ───────
+    async function logAccess(event, meta = {}) {
+      const entry = { ts: Date.now(), event, ...meta };
+      try {
+        const log = (await idbGet('logs', 'access_log')) || [];
+        log.push(entry);
+        if (log.length > 1000) log.splice(0, log.length - 1000);
+        await idbSet('logs', 'access_log', log);
+      } catch (e) { console.warn('[DAWN:Log]', e); }
+      return entry;
+    }
+    async function getAccessLog() { return (await idbGet('logs', 'access_log')) || []; }
+
+    // ── Session / game state ───────────────────────────────────
+    async function saveSession(data) {
+      await idbSet('game_state', 'session', data);
+      ls.set('last_session_ts', Date.now());
+      await logAccess('session_save', { keys: Object.keys(data) });
+      console.log('[DAWN:Storage] Session saved ✓');
+    }
+    async function loadSession() {
+      const data = await idbGet('game_state', 'session');
+      if (data) await logAccess('session_load');
+      return data;
+    }
+    async function clearSession() {
+      await idbDel('game_state', 'session');
+      ls.del('last_session_ts');
+      await logAccess('session_clear');
+    }
+
+    // ── Settings ───────────────────────────────────────────────
+    async function saveSetting(key, value) {
+      ls.set('setting_' + key, value);           // fast LS copy
+      await idbSet('settings', key, value);       // durable IDB copy
+    }
+    async function loadSetting(key, defaultVal = null) {
+      const quick = ls.get('setting_' + key);
+      if (quick !== null) return quick;
+      const full = await idbGet('settings', key);
+      return full !== null ? full : defaultVal;
+    }
+    async function getAllSettings() {
+      const rows = await idbGetAll('settings');
+      return rows.reduce((o, r) => { o[r.key] = r.value; return o; }, {});
+    }
+
+    // ── Image / asset cache ────────────────────────────────────
+    async function cacheImage(type, url) {
+      if (!url) return idbGet('images', type);
+      await idbSet('images', type, url);
+      ls.set('img_ts_' + type, Date.now());
+      console.log(`[DAWN:Storage] Image cached: ${type}`);
+      return url;
+    }
+    async function getCachedImage(type) { return idbGet('images', type); }
+    async function clearImageCache()    { await idbClear('images'); console.log('[DAWN:Storage] Image cache cleared'); }
+
+    // ── Generic asset storage (base64 blobs, JSON, etc.) ──────
+    async function saveAsset(key, data, meta = {}) {
+      await idbSet('assets', key, { data, meta, saved: Date.now() });
+      await logAccess('asset_save', { key, size: typeof data === 'string' ? data.length : '?' });
+    }
+    async function loadAsset(key) {
+      const row = await idbGet('assets', key);
+      return row ? row.data : null;
+    }
+
+    // ── Full export → device file ──────────────────────────────
+    async function exportToFile(filename = `dawn_save_${Date.now()}.json`) {
+      const [sessions, settings, images, logs, assets] = await Promise.all([
+        idbGetAll('game_state'), idbGetAll('settings'),
+        idbGetAll('images'),     idbGetAll('logs'),
+        idbGetAll('assets'),
+      ]);
+      const payload = {
+        version: 1,
+        exported: new Date().toISOString(),
+        device: window.DeviceProfile ? { tier: window.DeviceProfile.tier, mobile: window.DeviceProfile.mobile } : {},
+        sessions, settings, images, logs, assets,
+        localStorage: ls.snapshot(),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      await logAccess('export', { filename, stores: { sessions: sessions.length, settings: settings.length, images: images.length } });
+      console.log('[DAWN:Storage] Exported →', filename);
+      return filename;
+    }
+
+    // ── Import from device file ────────────────────────────────
+    async function importFromFile(file) {
+      return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = async e => {
+          try {
+            const payload = JSON.parse(e.target.result);
+            if (payload.version !== 1) throw new Error('Unknown save version: ' + payload.version);
+            const db = await openDB();
+            const storeMap = { game_state: payload.sessions, settings: payload.settings,
+                               images: payload.images, logs: payload.logs, assets: payload.assets };
+            for (const [store, records] of Object.entries(storeMap)) {
+              if (!records?.length) continue;
+              const tx = db.transaction(store, 'readwrite');
+              const os = tx.objectStore(store);
+              records.forEach(r => os.put(r));
+            }
+            if (payload.localStorage) Object.entries(payload.localStorage).forEach(([k, v]) => ls.set(k, v));
+            await logAccess('import', { filename: file.name, version: payload.version });
+            console.log('[DAWN:Storage] Import complete ✓');
+            res(payload);
+          } catch (err) { rej(err); }
+        };
+        reader.onerror = () => rej(reader.error);
+        reader.readAsText(file);
+      });
+    }
+
+    // ── Trigger file picker for import ─────────────────────────
+    function promptImport() {
+      return new Promise((res, rej) => {
+        const input = document.createElement('input');
+        input.type   = 'file';
+        input.accept = '.json,application/json';
+        input.onchange = async e => {
+          const file = e.target.files[0];
+          if (!file) return rej(new Error('No file selected'));
+          try { res(await importFromFile(file)); } catch (err) { rej(err); }
+        };
+        input.click();
+      });
+    }
+
+    // ── Storage usage report ───────────────────────────────────
+    async function getStorageReport() {
+      const [sessions, settings, images, logs, assets] = await Promise.all([
+        idbGetAll('game_state'), idbGetAll('settings'),
+        idbGetAll('images'),     idbGetAll('logs'),
+        idbGetAll('assets'),
+      ]);
+      let quota = null;
+      if (navigator.storage?.estimate) {
+        const est = await navigator.storage.estimate();
+        quota = { usedMB: (est.usage/1024/1024).toFixed(2), totalMB: (est.quota/1024/1024).toFixed(0), pct: ((est.usage/est.quota)*100).toFixed(1)+'%' };
+      }
+      const lsBytes = ls.keys().reduce((n, k) => n + JSON.stringify(ls.get(k)).length, 0);
+      return { sessions: sessions.length, settings: settings.length, images: images.length,
+               logEntries: logs[0]?.value?.length ?? 0, assets: assets.length,
+               lsKB: (lsBytes/1024).toFixed(1), quota };
+    }
+
+    // ── Public API ─────────────────────────────────────────────
+    return {
+      ls, idb: { set: idbSet, get: idbGet, getAll: idbGetAll, del: idbDel, clear: idbClear },
+      saveSession, loadSession, clearSession,
+      saveSetting, loadSetting, getAllSettings,
+      cacheImage, getCachedImage, clearImageCache,
+      saveAsset, loadAsset,
+      exportToFile, importFromFile, promptImport,
+      logAccess, getAccessLog,
+      getStorageReport,
+    };
+  })();
+
+  // Back-compat shim for older code referencing ImageGenerationService
+  window.ImageGenerationService = {
+    CACHE_KEY: 'dawn_generated_images',
+    async generateAndCache(type, url) { return window.DAWNStorage.cacheImage(type, url); },
+    getFromCache(type)                { return window.DAWNStorage.getCachedImage(type); },
+    saveToCache(type, url)            { return window.DAWNStorage.cacheImage(type, url); },
+    clearCache()                      { window.DAWNStorage.clearImageCache(); },
+  };
+  </script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       2.5️⃣  DAWN IMAGE CHECKER
+       Detects broken (failed-to-load) and black (visually empty)
+       PNGs. Bad images are REJECTED — never written to IDB.
+       Existing cache is purged of invalid entries on startup.
+
+       API:
+         DAWNImageChecker.check(url)           → { ok, reason?, blackRatio? }
+         DAWNImageChecker.getHealth(cacheKey)  → last stored result (from ls)
+         DAWNImageChecker.purgeInvalidImages() → remove bad entries from IDB
+         DAWNImageChecker.auditCache()         → scan+table all cached images
+         DAWNImageChecker.patchStorage()       → auto-validate cacheImage()
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  window.DAWNImageChecker = (() => {
+    const TAG = '[DAWN:ImageChecker]';
+
+    // ── Tunable thresholds ────────────────────────────────────────
+    const BLACK_CHANNEL_MAX = 15;   // R/G/B ≤ this counts as a dark pixel
+    const BLACK_RATIO_FLAG  = 0.97; // fraction of dark pixels needed to flag
+    const THUMB_SIZE        = 64;   // max side-length of sampling canvas
+
+    // ── Core check: broken + black in one pass ────────────────────
+    function check(url) {
+      return new Promise(resolve => {
+        if (!url) return resolve({ ok: false, reason: 'empty' });
+
+        const img   = new Image();
+        img.crossOrigin = 'anonymous';
+
+        const timer = setTimeout(() => {
+          img.src = '';
+          resolve({ ok: false, reason: 'timeout' });
+        }, 8000);
+
+        img.onerror = () => {
+          clearTimeout(timer);
+          resolve({ ok: false, reason: 'broken' });
+        };
+
+        img.onload = () => {
+          clearTimeout(timer);
+          const W = img.naturalWidth  || 0;
+          const H = img.naturalHeight || 0;
+
+          if (W < 2 || H < 2) return resolve({ ok: false, reason: 'zero-size' });
+
+          try {
+            // Scale down so we read all pixels cheaply in one getImageData call
+            const scale = Math.min(1, THUMB_SIZE / Math.max(W, H));
+            const sw    = Math.max(1, Math.round(W * scale));
+            const sh    = Math.max(1, Math.round(H * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width  = sw;
+            canvas.height = sh;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, sw, sh);
+
+            const { data } = ctx.getImageData(0, 0, sw, sh);
+            let dark = 0;
+            const total = sw * sh;
+            for (let i = 0; i < data.length; i += 4) {
+              if (data[i+3] < 10 ||
+                  (data[i]   <= BLACK_CHANNEL_MAX &&
+                   data[i+1] <= BLACK_CHANNEL_MAX &&
+                   data[i+2] <= BLACK_CHANNEL_MAX)) dark++;
+            }
+
+            const ratio = dark / total;
+            if (ratio >= BLACK_RATIO_FLAG) {
+              resolve({ ok: false, reason: 'black', blackRatio: ratio });
+            } else {
+              resolve({ ok: true,  blackRatio: ratio });
+            }
+          } catch {
+            // CORS-tainted canvas — image loaded fine, treat as OK
+            resolve({ ok: true, note: 'canvas-tainted' });
+          }
+        };
+
+        img.src = url;
+      });
+    }
+
+    // ── Patch DAWNStorage.cacheImage — REJECT bad images ─────────
+    function patchStorage() {
+      if (!window.DAWNStorage) { console.warn(TAG, 'DAWNStorage not ready'); return; }
+
+      const _orig = window.DAWNStorage.cacheImage.bind(window.DAWNStorage);
+      window.DAWNStorage.cacheImage = async function(type, url) {
+        if (!url) return _orig(type, url);   // read path (no url = get)
+
+        const health = await check(url);
+        // Persist health to ls (ls.set handles serialisation)
+        window.DAWNStorage.ls.set('img_health_' + type, health);
+
+        if (!health.ok) {
+          const icon = health.reason === 'black' ? '⬛' : '💔';
+          console.warn(TAG, `${icon} REJECTED "${type}" — ${health.reason}`,
+            health.blackRatio != null ? `(${(health.blackRatio*100).toFixed(1)}% dark)` : '');
+          try { await window.DAWNStorage.logAccess('image_rejected',
+            { type, reason: health.reason, blackRatio: health.blackRatio ?? null }); } catch {}
+          return null;   // ← image is NOT written to IDB
+        }
+
+        return _orig(type, url);  // healthy image → store normally
+      };
+      console.log(TAG, 'Patched DAWNStorage.cacheImage — bad images will be rejected ✓');
+    }
+
+    // ── Retrieve last known health for a cache key ────────────────
+    function getHealth(type) {
+      return window.DAWNStorage?.ls.get('img_health_' + type) ?? null;
+    }
+
+    // ── Purge existing invalid images from IDB ────────────────────
+    async function purgeInvalidImages() {
+      if (!window.DAWNStorage) return 0;
+      const TAG = '[DAWN:Checker]';
+      const rows = await window.DAWNStorage.idb.getAll('images');
+      if (!rows.length) return 0;
+
+      console.log(`${TAG} Purging invalid images (batching 3 at a time)…`);
+      const BATCH_SIZE = 3;
+      let removed = 0;
+
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (row) => {
+          const res = await check(row.url || row.value); // Handle potential schema difference
+          if (!res.ok) {
+            console.warn(`${TAG} Purging bad image: ${row.key} (${res.reason})`);
+            await window.DAWNStorage.idb.delete('images', row.key);
+            localStorage.removeItem(`dawn_img_health_${row.key}`);
+            localStorage.removeItem(`dawn_img_ts_${row.key}`);
+            removed++;
+          }
+        }));
+        // Small delay between batches to yield to UI thread
+        await new Promise(res => setTimeout(res, 100));
+      }
+
+      if (removed > 0) {
+        console.warn(TAG, `Purge complete — removed ${removed} / ${rows.length} images`);
+        try { await window.DAWNStorage.logAccess('image_purge', { removed, total: rows.length }); } catch {}
+      } else {
+        console.log(TAG, `Purge scan: all ${rows.length} cached images OK ✓`);
+      }
+      return removed;
+    }
+
+    // ── Audit: check all cached images and log a table ────────────
+    async function auditCache() {
+      if (!window.DAWNStorage) throw new Error(TAG + ' DAWNStorage unavailable');
+      const rows = await window.DAWNStorage.idb.getAll('images');
+      if (!rows.length) { console.log(TAG, 'Image cache is empty'); return []; }
+
+      const results = await Promise.all(
+        rows.map(async row => ({ key: row.key, health: await check(row.value) }))
+      );
+
+      console.group(TAG + ' Cache Audit');
+      console.table(results.map(r => ({
+        key       : r.key,
+        ok        : r.health.ok,
+        reason    : r.health.reason    ?? '—',
+        blackRatio: r.health.blackRatio != null ? (r.health.blackRatio*100).toFixed(1)+'%' : '—',
+        note      : r.health.note      ?? '',
+      })));
+      const bad = results.filter(r => !r.health.ok);
+      if (bad.length) console.warn(TAG, `${bad.length} / ${results.length} flagged`);
+      else            console.log(TAG,  `All ${results.length} images passed ✓`);
+      console.groupEnd();
+      return results;
+    }
+
+    return { check, getHealth, patchStorage, purgeInvalidImages, auditCache };
+  })();
+
+  // Patch immediately + purge any stale bad images already in IDB
+  window.DAWNImageChecker.patchStorage();
+  window.DAWNImageChecker.purgeInvalidImages().catch(() => {});
+  </script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       3️⃣  LOCAL BROWSER API SERVICE  (zero internet required)
+       All features run entirely inside the browser engine:
+       Speech TTS · Speech STT · Haptics · Notifications
+       Gamepad · Battery · Clipboard · Sensors · Performance
+       Camera · Network · Offline Cache API · Web Workers
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  window.DAWNLocalAPIs = (() => {
+
+    // ── 3a. Speech TTS (browser built-in, fully offline) ──────
+    const speech = {
+      get supported() { return 'speechSynthesis' in window; },
+
+      speak(text, opts = {}) {
+        if (!this.supported) return console.warn('[DAWN:TTS] Not supported');
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate   = opts.rate   ?? 1;
+        u.pitch  = opts.pitch  ?? 1;
+        u.volume = opts.volume ?? 1;
+        u.lang   = opts.lang   || 'en-US';
+        if (opts.voice) {
+          const v = speechSynthesis.getVoices().find(x => x.name.includes(opts.voice));
+          if (v) u.voice = v;
+        }
+        u.onend   = opts.onEnd   || null;
+        u.onerror = e => console.warn('[DAWN:TTS] Error:', e.error);
+        speechSynthesis.speak(u);
+        return u;
+      },
+      stop()   { if (this.supported) speechSynthesis.cancel(); },
+      pause()  { if (this.supported) speechSynthesis.pause(); },
+      resume() { if (this.supported) speechSynthesis.resume(); },
+      getVoices() { return this.supported ? speechSynthesis.getVoices() : []; },
+    };
+
+    // ── 3b. Speech STT (runs locally in Chromium; offline capable) ──
+    let _sttInst = null;
+    const stt = {
+      get supported() { return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window; },
+
+      start(onResult, onEnd, opts = {}) {
+        if (!this.supported) return console.warn('[DAWN:STT] Not supported');
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        _sttInst = new SR();
+        _sttInst.lang            = opts.lang       || 'en-US';
+        _sttInst.continuous      = opts.continuous || false;
+        _sttInst.interimResults  = opts.interim    || false;
+        _sttInst.maxAlternatives = opts.alts       || 1;
+        _sttInst.onresult  = e => onResult && onResult(Array.from(e.results).map(r => r[0].transcript).join(''), e);
+        _sttInst.onend     = () => { onEnd && onEnd(); _sttInst = null; };
+        _sttInst.onerror   = e => {
+          console.warn('[DAWN:STT] Error:', e.error);
+          if (opts.onError) opts.onError(e.error);
+        };
+        _sttInst.start();
+        console.log('[DAWN:STT] Listening…');
+        return _sttInst;
+      },
+      stop() { if (_sttInst) { _sttInst.stop(); _sttInst = null; } },
+    };
+
+    // ── 3c. Haptics / Vibration ────────────────────────────────
+    const haptics = {
+      get supported() { return 'vibrate' in navigator; },
+      tap()     { this.supported && navigator.vibrate(10); },
+      success() { this.supported && navigator.vibrate([30, 20, 30]); },
+      warning() { this.supported && navigator.vibrate([50, 30, 50, 30, 50]); },
+      error()   { this.supported && navigator.vibrate([100, 50, 200]); },
+      custom(pattern) { this.supported && navigator.vibrate(pattern); },
+      stop()    { this.supported && navigator.vibrate(0); },
+    };
+
+    // ── 3d. Push Notifications ────────────────────────────────
+    const notifications = {
+      get supported()  { return 'Notification' in window; },
+      get permission() { return this.supported ? Notification.permission : 'denied'; },
+      async request()  { return this.supported ? Notification.requestPermission() : 'denied'; },
+      async send(title, body, opts = {}) {
+        if (!this.supported) return null;
+        if (this.permission !== 'granted') await this.request();
+        if (this.permission !== 'granted') return null;
+        const n = new Notification(title, { body, icon: opts.icon, tag: opts.tag, silent: opts.silent ?? false });
+        if (opts.onClick) n.onclick = opts.onClick;
+        return n;
+      },
+    };
+
+    // ── 3e. Gamepad (controllers, no internet) ─────────────────
+    const gamepad = {
+      get supported() { return 'getGamepads' in navigator; },
+      getAll()  { return this.supported ? [...navigator.getGamepads()].filter(Boolean) : []; },
+      getFirst(){ return this.getAll()[0] || null; },
+
+      // Poll at fixed FPS; returns a stop() fn
+      poll(callback, fps = 60) {
+        if (!this.supported) return () => {};
+        let raf, last = 0;
+        const ms = 1000 / fps;
+        const loop = ts => { if (ts - last >= ms) { last = ts; callback(this.getAll()); } raf = requestAnimationFrame(loop); };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+      },
+
+      // Returns {connected, id, axes, buttons} summary
+      summarise(gp) {
+        if (!gp) return null;
+        return { connected: gp.connected, id: gp.id, axes: [...gp.axes], buttons: [...gp.buttons].map(b => ({ pressed: b.pressed, value: b.value })) };
+      },
+    };
+
+    // ── 3f. Battery Status ────────────────────────────────────
+    const battery = {
+      get supported() { return 'getBattery' in navigator; },
+      async getInfo() {
+        if (!this.supported) return { supported: false };
+        const b = await navigator.getBattery();
+        return { level: Math.round(b.level * 100) + '%', charging: b.charging,
+                 chargingTimeSec: b.chargingTime, dischargingTimeSec: b.dischargingTime, supported: true };
+      },
+      async onChange(callback) {
+        if (!this.supported) return;
+        const b = await navigator.getBattery();
+        ['levelchange', 'chargingchange'].forEach(ev => b.addEventListener(ev, () => callback({ level: Math.round(b.level*100)+'%', charging: b.charging })));
+      },
+    };
+
+    // ── 3g. Clipboard ─────────────────────────────────────────
+    const clipboard = {
+      get supported() { return 'clipboard' in navigator; },
+      async copy(text) {
+        if (this.supported) { try { await navigator.clipboard.writeText(text); return true; } catch {} }
+        try { const el = document.createElement('textarea'); el.value = text; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); return true; } catch { return false; }
+      },
+      async paste() {
+        if (this.supported) { try { return await navigator.clipboard.readText(); } catch {} }
+        return null;
+      },
+      async copyImageBlob(blob) {
+        if (!this.supported || !window.ClipboardItem) return false;
+        try { await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]); return true; } catch { return false; }
+      },
+    };
+
+    // ── 3h. Device Sensors ────────────────────────────────────
+    const sensors = {
+      _orientHandler: null,
+      startOrientation(callback) {
+        if (!('DeviceOrientationEvent' in window)) return false;
+        this._orientHandler = e => callback({ alpha: e.alpha, beta: e.beta, gamma: e.gamma, absolute: e.absolute });
+        window.addEventListener('deviceorientation', this._orientHandler, true);
+        return true;
+      },
+      stopOrientation() {
+        if (this._orientHandler) window.removeEventListener('deviceorientation', this._orientHandler, true);
+        this._orientHandler = null;
+      },
+
+      _motionHandler: null,
+      startMotion(callback) {
+        if (!('DeviceMotionEvent' in window)) return false;
+        this._motionHandler = e => callback({
+          x: e.acceleration?.x, y: e.acceleration?.y, z: e.acceleration?.z,
+          rotRate: { alpha: e.rotationRate?.alpha, beta: e.rotationRate?.beta, gamma: e.rotationRate?.gamma },
+          interval: e.interval,
+        });
+        window.addEventListener('devicemotion', this._motionHandler, true);
+        return true;
+      },
+      stopMotion() {
+        if (this._motionHandler) window.removeEventListener('devicemotion', this._motionHandler, true);
+        this._motionHandler = null;
+      },
+    };
+
+    // ── 3i. Performance Monitor ───────────────────────────────
+    const perf = {
+      mark(name)             { performance.mark('dawn:' + name); },
+      measure(label, a, b)   { try { performance.measure('dawn:'+label, 'dawn:'+a, 'dawn:'+b); } catch {} },
+      getEntries()           { return performance.getEntriesByType('measure').filter(e => e.name.startsWith('dawn:')); },
+      report()               { console.table(this.getEntries().map(e => ({ label: e.name.replace('dawn:',''), ms: e.duration.toFixed(2) }))); },
+      memory()               { return performance.memory || null; }, // Chrome only
+      now()                  { return performance.now(); },
+
+      // Measure real FPS over 60 frames
+      fps() {
+        return new Promise(res => {
+          let frames = 0, t0 = performance.now();
+          const tick = () => { if (++frames < 60) requestAnimationFrame(tick); else res(Math.round(frames / ((performance.now() - t0) / 1000))); };
+          requestAnimationFrame(tick);
+        });
+      },
+    };
+
+    // ── 3j. Camera Capture (local, no upload) ─────────────────
+    const camera = {
+      get supported() { return !!navigator.mediaDevices?.getUserMedia; },
+      async captureFrame(opts = {}) {
+        if (!this.supported) throw new Error('[DAWN:Camera] getUserMedia not supported');
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: opts.facing || 'environment', width: opts.w || 640, height: opts.h || 480 },
+            audio: false,
+          });
+          const video = document.createElement('video');
+          video.srcObject = stream; video.muted = true;
+          await new Promise(res => { video.onloadedmetadata = res; video.play(); });
+          await new Promise(res => setTimeout(res, 200)); // stabilise
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          canvas.getContext('2d').drawImage(video, 0, 0);
+          const blob = await new Promise(res => canvas.toBlob(res, opts.format || 'image/jpeg', opts.quality || 0.92));
+          if (opts.saveAs) {
+            const buffer = await blob.arrayBuffer();
+            await window.DAWNStorage.saveAsset(opts.saveAs, buffer, { 
+              format: blob.type,
+              isImageBuffer: true,
+              w: canvas.width,
+              h: canvas.height
+            });
+          }
+          return blob;
+        } finally {
+          if (stream) stream.getTracks().forEach(t => t.stop());
+        }
+      },
+    };
+
+    // ── 3k. Network Status ────────────────────────────────────
+    const network = {
+      isOnline()  { return navigator.onLine; },
+      type()      { return navigator.connection?.effectiveType || 'unknown'; },
+      downlink()  { return navigator.connection?.downlink || null; }, // Mbps
+      onChange(cb){ window.addEventListener('online', () => cb(true)); window.addEventListener('offline', () => cb(false)); },
+    };
+
+    // ── 3l. Offline Asset Cache (Cache API, no SW needed) ─────
+    const offlineCache = {
+      CACHE: 'dawn-v1',
+      get supported() { return 'caches' in window; },
+
+      async addAssets(urls) {
+        if (!this.supported) return false;
+        const cache = await caches.open(this.CACHE);
+        await Promise.allSettled(urls.map(u => cache.add(u).catch(() => null)));
+        console.log('[DAWN:OfflineCache] Cached', urls.length, 'asset(s)');
+        return true;
+      },
+      async getAsset(url) {
+        if (!this.supported) return null;
+        return (await caches.open(this.CACHE)).match(url);
+      },
+      async putResponse(url, body, contentType = 'text/javascript') {
+        if (!this.supported) return;
+        const cache = await caches.open(this.CACHE);
+        await cache.put(url, new Response(body, { headers: { 'Content-Type': contentType } }));
+      },
+      async listCached() {
+        if (!this.supported) return [];
+        const cache = await caches.open(this.CACHE);
+        return (await cache.keys()).map(r => r.url);
+      },
+      async clear() {
+        if (this.supported) { await caches.delete(this.CACHE); console.log('[DAWN:OfflineCache] Cleared'); }
+      },
+    };
+
+    // ── 3m. Web Workers (inline, no separate file) ────────────
+    const workers = {
+      // Run a pure function in a background thread, returns Promise<result>
+      run(fn, data) {
+        return new Promise((res, rej) => {
+          const src = `self.onmessage=function(e){try{self.postMessage((${fn.toString()})(e.data));}catch(err){self.postMessage({__err:err.message});}}`;
+          const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+          const w = new Worker(url);
+          
+          let revoked = false;
+          const revoke = () => {
+            if (!revoked) {
+              URL.revokeObjectURL(url);
+              revoked = true;
+            }
+          };
+
+          w.onmessage = e => { 
+            w.terminate(); 
+            revoke();
+            e.data?.__err ? rej(new Error(e.data.__err)) : res(e.data); 
+          };
+          w.onerror   = e => { 
+            w.terminate(); 
+            revoke();
+            rej(e); 
+          };
+          w.postMessage(data);
+          
+          // Fallback revocation after a delay to ensure worker load
+          setTimeout(revoke, 10000);
+        });
+      },
+      // Create a persistent inline worker
+      create(fn) {
+        const src = `(${fn.toString()})()`;
+        const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        const w = new Worker(url);
+        URL.revokeObjectURL(url);
+        return w;
+      },
+    };
+
+    // ── 3n. Share API (native OS share sheet) ─────────────────
+    const share = {
+      get supported() { return 'share' in navigator; },
+      async share(data) {
+        if (!this.supported) return false;
+        try { await navigator.share(data); return true; } catch { return false; }
+      },
+      async shareText(text, title = 'DAWN') { return this.share({ title, text }); },
+      async shareURL(url, title = 'DAWN')   { return this.share({ title, url }); },
+    };
+
+    return { speech, stt, haptics, notifications, gamepad, battery, clipboard, sensors, perf, camera, network, offlineCache, workers, share };
+  })();
+  </script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       4️⃣  DAWN API REGISTRY
+       Maps every cloud + local AI API. All endpoints are fully
+       wired — set API keys via DAWNStorage.saveSetting(key, val).
+       A smartComplete() dispatcher picks the best available option.
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  window.DAWNAPIRegistry = (() => {
+
+    const SUPABASE_URL = 'https://impbfulyppuewichpsel.supabase.co';
+    const BUCKET_NAME  = 'dawn';
+
+    // ── Helper: load API key or throw ──────────────────────────
+    async function requireKey(name) {
+      const k = await window.DAWNStorage.loadSetting(name);
+      if (!k) throw new Error(`[DAWN:API] No key for "${name}". Call DAWNStorage.saveSetting("${name}","…") first.`);
+      return k;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 4a. CLOUD APIS — require internet
+    // ════════════════════════════════════════════════════════════
+    const cloud = {
+
+      // ── Google Gemini ────────────────────────────────────────
+      gemini: {
+        async complete(prompt, opts = {}) {
+          const key = await requireKey('gemini_key');
+          const model = opts.model || 'gemini-1.5-flash';
+          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                maxOutputTokens: opts.maxTokens || 512,
+                temperature: opts.temp ?? 0.8,
+              }
+            }),
+          });
+          if (!r.ok) throw new Error('[DAWN:Gemini] ' + await r.text());
+          const data = await r.json();
+          const text = data.candidates[0].content.parts[0].text;
+          await window.DAWNStorage.logAccess('api_gemini', { model, tokens: data.usageMetadata?.totalTokenCount });
+          return text;
+        },
+      },
+
+      // ── Supabase storage bucket ──────────────────────────────
+      supabase: {
+        BUCKET: `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}`,
+        async fetchScript(path, opts = {}) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), opts.timeout || 15000);
+          try {
+            const r = await fetch(this.BUCKET + '/' + path, { signal: opts.signal || controller.signal });
+            if (!r.ok) throw new Error(`Supabase ${path} → HTTP ${r.status}`);
+            return await r.text();
+          } finally {
+            clearTimeout(timeout);
+          }
+        },
+        async fetchJSON(path, opts = {}) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), opts.timeout || 15000);
+          try {
+            const r = await fetch(this.BUCKET + '/' + path, { signal: opts.signal || controller.signal });
+            if (!r.ok) throw new Error(`Supabase ${path} → HTTP ${r.status}`);
+            return await r.json();
+          } finally {
+            clearTimeout(timeout);
+          }
+        },
+        // Upload a blob (requires service_role key or signed URL)
+        async uploadBlob(path, blob, supabaseKey) {
+          const key = supabaseKey || await window.DAWNStorage.loadSetting('supabase_key');
+          if (!key) throw new Error('[DAWN:Supabase] No service key set');
+          const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${path}`;
+          const r = await fetch(uploadUrl, {
+            method: 'PUT', headers: { Authorization: 'Bearer ' + key, 'Content-Type': blob.type },
+            body: blob,
+          });
+          if (!r.ok) throw new Error('[DAWN:Supabase] Upload failed: ' + r.status);
+          return r.json();
+        },
+      },
+
+      // ── Puter.js — PRIMARY provider (user-pays, zero API keys) ──
+      //    complete()   → puter.ai.chat()        (Claude/GPT/Gemini via Puter)
+      //    txt2img()    → puter.ai.txt2img()     (image generation)
+      //    txt2speech() → puter.ai.txt2speech()  (TTS)
+      puter: {
+        _ready() { return typeof puter !== 'undefined'; },
+
+        async complete(prompt, opts = {}) {
+          if (!this._ready()) throw new Error('[DAWN:Puter] puter.js not loaded');
+          const model = opts.model || undefined;
+          const input = opts.messages ? opts.messages : prompt;
+          const resp  = await puter.ai.chat(input, model ? { model } : undefined);
+          // puter.ai.chat returns a string or ChatResponse object
+          const text = typeof resp === 'string'
+            ? resp
+            : resp?.message?.content?.[0]?.text ?? resp?.text ?? String(resp);
+          await window.DAWNStorage.logAccess('api_puter_chat', { model: model || 'default' });
+          return text;
+        },
+
+        async txt2img(prompt, opts = {}) {
+          if (!this._ready()) throw new Error('[DAWN:Puter] puter.js not loaded');
+          const imgEl = await puter.ai.txt2img(prompt, opts.testMode ?? false);
+          return new Promise((resolve, reject) => {
+            const convert = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width  = imgEl.naturalWidth  || 512;
+                canvas.height = imgEl.naturalHeight || 512;
+                canvas.getContext('2d').drawImage(imgEl, 0, 0);
+                const dataURL = canvas.toDataURL('image/png');
+                window.DAWNStorage.logAccess('api_puter_txt2img', { prompt: prompt.slice(0,60) }).catch(() => {});
+                resolve(dataURL);
+              } catch (e) { reject(e); }
+            };
+            if (imgEl.complete && imgEl.naturalWidth) convert();
+            else { imgEl.onload = convert; imgEl.onerror = reject; }
+          });
+        },
+
+        async txt2speech(text, opts = {}) {
+          if (!this._ready()) throw new Error('[DAWN:Puter] puter.js not loaded');
+          const audioEl = await puter.ai.txt2speech(text, opts.voice ? { voice: opts.voice } : undefined);
+          await window.DAWNStorage.logAccess('api_puter_tts', { chars: text.length });
+          return audioEl; // HTMLAudioElement — caller can .play()
+        },
+      },
+
+      // ── OpenAI Chat / GPT ────────────────────────────────────
+      openai: {
+        async complete(prompt, opts = {}) {
+          const key = await requireKey('openai_key');
+          const body = {
+            model:       opts.model      || 'gpt-4o-mini',
+            messages:    opts.messages   || [{ role: 'user', content: prompt }],
+            max_tokens:  opts.maxTokens  || 512,
+            temperature: opts.temp       ?? 0.8,
+            stream:      opts.stream     || false,
+          };
+          const r = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+            body: JSON.stringify(body),
+          });
+          if (!r.ok) throw new Error('[DAWN:OpenAI] ' + await r.text());
+          const data = await r.json();
+          await window.DAWNStorage.logAccess('api_openai', { model: body.model, tokens: data.usage?.total_tokens });
+          return data.choices[0].message.content;
+        },
+        async embed(text, opts = {}) {
+          const key = await requireKey('openai_key');
+          const r = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+            body: JSON.stringify({ model: opts.model || 'text-embedding-3-small', input: text }),
+          });
+          if (!r.ok) throw new Error('[DAWN:OpenAI:embed] ' + await r.text());
+          const data = await r.json();
+          return data.data[0].embedding;
+        },
+      },
+
+      // ── Anthropic Claude ─────────────────────────────────────
+      anthropic: {
+        async complete(prompt, opts = {}) {
+          const key = await requireKey('anthropic_key');
+          const r = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({
+              model:      opts.model     || 'claude-3-5-haiku-20241022',
+              max_tokens: opts.maxTokens || 512,
+              system:     opts.system    || '',
+              messages:   opts.messages  || [{ role: 'user', content: prompt }],
+            }),
+          });
+          if (!r.ok) throw new Error('[DAWN:Anthropic] ' + await r.text());
+          const data = await r.json();
+          await window.DAWNStorage.logAccess('api_anthropic', { model: opts.model, tokens: data.usage?.output_tokens });
+          return data.content[0].text;
+        },
+      },
+
+      // ── Stability AI (SDXL cloud) ────────────────────────────
+      stability: {
+        async generate(prompt, opts = {}) {
+          const key = await requireKey('stability_key');
+          const r = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: 'Bearer ' + key },
+            body: JSON.stringify({
+              text_prompts: [
+                { text: prompt, weight: 1 },
+                { text: opts.negPrompt || 'blurry, oversaturated, ugly, low quality', weight: -1 },
+              ],
+              cfg_scale: opts.cfgScale || 7,
+              height: opts.h || 1024, width: opts.w || 1024,
+              samples: 1, steps: opts.steps || 30,
+            }),
+          });
+          if (!r.ok) throw new Error('[DAWN:Stability] ' + await r.text());
+          const data = await r.json();
+          const url = 'data:image/png;base64,' + data.artifacts[0].base64;
+          await window.DAWNStorage.cacheImage('stability_' + Date.now(), url);
+          await window.DAWNStorage.logAccess('api_stability', { prompt: prompt.slice(0,60), w: opts.w, h: opts.h });
+          return url;
+        },
+      },
+
+      // ── ElevenLabs High-Quality TTS ──────────────────────────
+      elevenlabs: {
+        async speak(text, opts = {}) {
+          const key = await requireKey('elevenlabs_key');
+          const voiceId = opts.voiceId || '21m00Tcm4TlvDq8ikWAM';
+          const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+            body: JSON.stringify({
+              text, model_id: opts.model || 'eleven_monolingual_v1',
+              voice_settings: { stability: opts.stability || 0.5, similarity_boost: opts.similarity || 0.75 },
+            }),
+          });
+          if (!r.ok) throw new Error('[DAWN:ElevenLabs] ' + await r.text());
+          const blob = await r.blob();
+          const url  = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.onended = () => URL.revokeObjectURL(url);
+          audio.play();
+          await window.DAWNStorage.logAccess('api_elevenlabs', { chars: text.length, voice: voiceId });
+          return audio;
+        },
+        async getVoices() {
+          const key = await requireKey('elevenlabs_key');
+          const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': key } });
+          if (!r.ok) throw new Error('[DAWN:ElevenLabs] ' + await r.text());
+          return (await r.json()).voices;
+        },
+      },
+
+      // ── Replicate (run any model via API) ────────────────────
+      replicate: {
+        async run(modelVersion, input, opts = {}) {
+          const key = await requireKey('replicate_key');
+          const r = await fetch('https://api.replicate.com/v1/predictions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Token ' + key },
+            body: JSON.stringify({ version: modelVersion, input }),
+          });
+          if (!r.ok) throw new Error('[DAWN:Replicate] ' + await r.text());
+          let pred = await r.json();
+          // Poll for completion
+          const maxWait = opts.timeoutMs || 120000;
+          const start   = Date.now();
+          while (['starting','processing'].includes(pred.status)) {
+            if (Date.now() - start > maxWait) throw new Error('[DAWN:Replicate] Timeout');
+            await new Promise(res => setTimeout(res, 1000));
+            const poll = await fetch(pred.urls.get, { headers: { Authorization: 'Token ' + key } });
+            pred = await poll.json();
+          }
+          if (pred.status !== 'succeeded') throw new Error('[DAWN:Replicate] Failed: ' + pred.error);
+          await window.DAWNStorage.logAccess('api_replicate', { model: modelVersion.slice(0,32), status: pred.status });
+          return pred.output;
+        },
+      },
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // 4b. LOCAL LLM  (WebLLM — downloads once, runs offline)
+    //     Requires: allowLocalLLM tier (full or lite)
+    // ════════════════════════════════════════════════════════════
+    const localLLM = {
+      _engine: null,
+      _loading: false,
+
+      isSupported() { return window.DeviceProfile?.allowLocalLLM || false; },
+
+      async load(modelId = 'Phi-3-mini-4k-instruct-q4f16_1-MLC', onProgress) {
+        if (!this.isSupported()) throw new Error('[DAWN:LocalLLM] Device tier too low (need full or lite)');
+        if (this._engine) return this._engine;
+        if (this._loading) throw new Error('[DAWN:LocalLLM] Already loading');
+        this._loading = true;
+        try {
+          if (!window.webllm) {
+            await new Promise((res, rej) => {
+              const s = document.createElement('script');
+              s.src = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.73/lib/index.js';
+              s.onload = res; s.onerror = () => rej(new Error('[DAWN:LocalLLM] Failed to load WebLLM CDN'));
+              document.head.appendChild(s);
+            });
+          }
+          const engine = new window.webllm.MLCEngine();
+          engine.setInitProgressCallback(p => {
+            onProgress && onProgress(p);
+            console.log('[DAWN:LocalLLM]', p.text);
+            const statusEl = document.getElementById('load-status');
+            if (statusEl) statusEl.textContent = p.text?.slice(0,40) || 'Loading model…';
+          });
+          await engine.reload(modelId);
+          this._engine = engine;
+          await window.DAWNStorage.logAccess('local_llm_load', { model: modelId });
+          console.log('[DAWN:LocalLLM] Ready →', modelId);
+          return engine;
+        } finally {
+          this._loading = false;
+        }
+      },
+
+      async infer(prompt, opts = {}) {
+        if (!this._engine) await this.load(opts.model, opts.onProgress);
+        const resp = await this._engine.chat.completions.create({
+          messages:    opts.messages  || [{ role: 'user', content: prompt }],
+          max_tokens:  opts.maxTokens || 256,
+          temperature: opts.temp      ?? 0.8,
+        });
+        await window.DAWNStorage.logAccess('local_llm_infer', { tokens: resp.usage?.total_tokens });
+        return resp.choices[0].message.content;
+      },
+
+      unload() {
+        if (this._engine) { this._engine = null; console.log('[DAWN:LocalLLM] Unloaded'); }
+      },
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // 4c. LOCAL IMAGE GEN  (Xenova/transformers.js ONNX — desktop full tier)
+    //     Requires: allowSDXL tier (full only)
+    // ════════════════════════════════════════════════════════════
+    const localImageGen = {
+      _pipeline: null,
+
+      isSupported() { return window.DeviceProfile?.allowSDXL || false; },
+
+      async load(onProgress) {
+        if (!this.isSupported()) throw new Error('[DAWN:LocalImgGen] Requires full GPU tier');
+        if (this._pipeline) return this._pipeline;
+
+        return new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.type = 'module';
+          s.textContent = `
+            import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1';
+            try {
+              const p = await pipeline('text-to-image','Xenova/stable-diffusion-2-1-base',
+                { progress_callback: (info) => window.dispatchEvent(new CustomEvent('dawn-imggen-progress',{detail:info})) });
+              window._dawnImgGenPipeline = p;
+              window.dispatchEvent(new Event('dawn-imggen-ready'));
+            } catch (err) {
+              window.dispatchEvent(new CustomEvent('dawn-imggen-error', { detail: err }));
+            }
+          `;
+          document.head.appendChild(s);
+          if (onProgress) window.addEventListener('dawn-imggen-progress', e => onProgress(e.detail));
+          window.addEventListener('dawn-imggen-ready', () => { this._pipeline = window._dawnImgGenPipeline; res(); }, { once: true });
+          window.addEventListener('dawn-imggen-error', (e) => rej(e.detail), { once: true });
+          
+          // Timeout if it takes too long
+          setTimeout(() => rej(new Error('[DAWN:LocalImgGen] Load timeout')), 60000);
+        });
+      },
+
+      async generate(prompt, opts = {}) {
+        if (!this._pipeline) await this.load(opts.onProgress);
+        const out = await this._pipeline(prompt, { num_inference_steps: opts.steps || 20, guidance_scale: opts.cfg || 7.5 });
+        const url = URL.createObjectURL(out.images[0]);
+        const key = 'local_img_' + Date.now();
+        await window.DAWNStorage.cacheImage(key, url);
+        await window.DAWNStorage.logAccess('local_imggen_gen', { prompt: prompt.slice(0,60), key });
+        
+        // Return object with revoke method to prevent leaks
+        return { 
+          url, 
+          key,
+          revoke: () => URL.revokeObjectURL(url)
+        };
+      },
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // 4d. GPU COMPUTE  (WebGPU — full tier with WebGPU support)
+    //     Requires: allowGPUTasks + navigator.gpu
+    // ════════════════════════════════════════════════════════════
+    const gpuTasks = {
+      _adapter: null, _device: null,
+
+      isSupported() { return window.DeviceProfile?.allowGPUTasks && 'gpu' in navigator; },
+
+      async init() {
+        if (!this.isSupported()) throw new Error('[DAWN:GPU] WebGPU not available or tier too low');
+        if (this._device) return this._device;
+        this._adapter = await navigator.gpu.requestAdapter();
+        if (!this._adapter) throw new Error('[DAWN:GPU] No adapter found');
+        this._device = await this._adapter.requestDevice();
+        console.log('[DAWN:GPU] WebGPU device ready');
+        return this._device;
+      },
+
+      // Run an arbitrary WGSL compute shader; returns Float32Array output
+      async runShader(wgslCode, inputFloat32, outputElements) {
+        const device = await this.init();
+        const inputBuf  = device.createBuffer({ size: inputFloat32.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+        const outputBuf = device.createBuffer({ size: outputElements * 4,      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+        const readBuf   = device.createBuffer({ size: outputElements * 4,      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+        device.queue.writeBuffer(inputBuf, 0, inputFloat32);
+        const pipeline = device.createComputePipeline({ layout:'auto', compute:{ module: device.createShaderModule({ code: wgslCode }), entryPoint:'main' } });
+        const bg = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries:[{binding:0,resource:{buffer:inputBuf}},{binding:1,resource:{buffer:outputBuf}}] });
+        const enc  = device.createCommandEncoder();
+        const pass = enc.beginComputePass();
+        pass.setPipeline(pipeline); pass.setBindGroup(0, bg); pass.dispatchWorkgroups(Math.ceil(inputFloat32.length / 64)); pass.end();
+        enc.copyBufferToBuffer(outputBuf, 0, readBuf, 0, outputElements * 4);
+        device.queue.submit([enc.finish()]);
+        await readBuf.mapAsync(GPUMapMode.READ);
+        const result = new Float32Array(readBuf.getMappedRange().slice(0));
+        readBuf.unmap();
+        await window.DAWNStorage.logAccess('gpu_shader', { inputLen: inputFloat32.length, outputLen: outputElements });
+        return result;
+      },
+
+      // Convenience: get GPU info
+      async getInfo() {
+        if (!this.isSupported()) return { supported: false };
+        const a = await navigator.gpu.requestAdapter();
+        return { supported: true, vendor: a?.info?.vendor, architecture: a?.info?.architecture };
+      },
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // 4e. SMART DISPATCHER  — picks best available option
+    // ════════════════════════════════════════════════════════════
+    async function smartComplete(prompt, opts = {}) {
+      const dp = window.DeviceProfile;
+      const online = window.DAWNLocalAPIs?.network.isOnline() ?? navigator.onLine;
+
+      // 0. PUTER — primary online provider (user-pays, no API keys needed)
+      if (online && cloud.puter._ready() && !opts.skipPuter) {
+        try {
+          console.log('[DAWN:Smart] Using Puter.js (primary)');
+          return await cloud.puter.complete(prompt, opts);
+        } catch (e) {
+          console.warn('[DAWN:Smart] Puter failed, falling back to keyed APIs:', e.message);
+        }
+      }
+
+      // 1. Offline + local LLM available → use local
+      if (!online && dp?.allowLocalLLM) {
+        console.log('[DAWN:Smart] Offline → local LLM');
+        return localLLM.infer(prompt, opts);
+      }
+
+      // 2. Online → keyed cloud APIs as fallbacks (Gemini → OpenAI → Anthropic)
+      if (online && dp?.allowCloudAPI) {
+        const fallbacks = opts.prefer
+          ? [opts.prefer, 'gemini', 'openai', 'anthropic'].filter((v, i, a) => a.indexOf(v) === i && v !== 'puter')
+          : ['gemini', 'openai', 'anthropic'];
+        for (const p of fallbacks) {
+          try { return await cloud[p].complete(prompt, opts); }
+          catch (e) { console.warn(`[DAWN:Smart] ${p} failed:`, e.message); }
+        }
+      }
+
+      // 3. Last resort → local LLM even when online
+      if (dp?.allowLocalLLM) {
+        console.log('[DAWN:Smart] All cloud APIs failed → local LLM');
+        return localLLM.infer(prompt, opts);
+      }
+
+      throw new Error('[DAWN:Smart] No AI inference available for this device / network state');
+    }
+
+    // ── Smart txt2img: Puter first, Stability fallback ───────────
+    async function smartTxt2img(prompt, opts = {}) {
+      const online = window.DAWNLocalAPIs?.network.isOnline() ?? navigator.onLine;
+      if (online && cloud.puter._ready()) {
+        try { return await cloud.puter.txt2img(prompt, opts); }
+        catch (e) { console.warn('[DAWN:Smart] Puter txt2img failed:', e.message); }
+      }
+      if (online) {
+        try { return await cloud.stability.generate(prompt, opts); }
+        catch (e) { console.warn('[DAWN:Smart] Stability txt2img failed:', e.message); }
+      }
+      if (window.DeviceProfile?.allowSDXL) return localImageGen.generate(prompt, opts);
+      throw new Error('[DAWN:Smart] No image generation available');
+    }
+
+    // ── Smart TTS: Puter first, ElevenLabs fallback, browser TTS last ─
+    async function smartTts(text, opts = {}) {
+      const online = window.DAWNLocalAPIs?.network.isOnline() ?? navigator.onLine;
+      if (online && cloud.puter._ready()) {
+        try { return await cloud.puter.txt2speech(text, opts); }
+        catch (e) { console.warn('[DAWN:Smart] Puter TTS failed:', e.message); }
+      }
+      if (online) {
+        try { return await cloud.elevenlabs.speak(text, opts); }
+        catch (e) { console.warn('[DAWN:Smart] ElevenLabs TTS failed:', e.message); }
+      }
+      // Browser built-in TTS (offline capable)
+      window.DAWNLocalAPIs?.speech.speak(text, opts);
+      return null;
+    }
+
+    // Expose API registry
+    return { cloud, localLLM, localImageGen, gpuTasks, smartComplete, smartTxt2img, smartTts };
+  })();
+  </script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       5️⃣  DEVICE DETECTION  (merged + expanded profile)
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  window.DeviceProfile = (() => {
+    function isMobileUA() {
+      return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(navigator.userAgent);
+    }
+    function isTouchOnly() {
+      return navigator.maxTouchPoints > 1 && !window.matchMedia('(pointer: fine)').matches;
+    }
+    function hasDesktopGPU() {
+      try {
+        const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
+        if (!gl) return false;
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        if (!ext) return true;
+        return !/Adreno|Mali|PowerVR|Apple GPU|Tegra|VideoCore/i.test(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '');
+      } catch { return false; }
+    }
+
+    const mobile   = isMobileUA() || isTouchOnly();
+    const cores    = navigator.hardwareConcurrency || 1;
+    const ram      = navigator.deviceMemory || null;
+    const goodGPU  = hasDesktopGPU();
+    const hasWebGPU = 'gpu' in navigator;
+    const canHeavy  = !mobile && goodGPU && cores >= 4 && (ram === null || ram >= 4);
+    const tier      = canHeavy ? 'full' : (!mobile && cores >= 2) ? 'lite' : 'minimal';
+
+    document.documentElement.setAttribute('data-tier',    tier);
+    if (mobile) document.documentElement.setAttribute('data-mobile', '');
+    else        document.documentElement.removeAttribute('data-mobile');
+    if (/Android/i.test(navigator.userAgent))
+                document.documentElement.setAttribute('data-android', '');
+    else        document.documentElement.removeAttribute('data-android');
+
+    const profile = {
+      // Hardware
+      tier, mobile,
+      isAndroid : /Android/i.test(navigator.userAgent),
+      isIOS     : /iPhone|iPad|iPod/i.test(navigator.userAgent),
+      cores, ram, goodGPU, hasWebGPU,
+
+      // Feature availability
+      hasCacheAPI    : 'caches' in window,
+      hasIDB         : 'indexedDB' in window,
+      hasSpeechTTS   : 'speechSynthesis' in window,
+      hasSpeechSTT   : 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window,
+      hasVibration   : 'vibrate' in navigator,
+      hasNotif       : 'Notification' in window,
+      hasGamepad     : 'getGamepads' in navigator,
+      hasBattery     : 'getBattery' in navigator,
+      hasCamera      : !!(navigator.mediaDevices?.getUserMedia),
+      hasShare       : 'share' in navigator,
+
+      // Compute gates
+      allowLocalLLM  : tier === 'full' || tier === 'lite',
+      allowSDXL      : tier === 'full',
+      allowGPUTasks  : tier === 'full' && 'gpu' in navigator,
+      allowCloudAPI  : true,
+      allowVortex    : tier !== 'minimal',
+    };
+
+    console.log('[DAWN] Device profile →', profile);
+    return profile;
+  })();
+  </script>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       6️⃣  DAWN BOOTSTRAP  (offline-aware, cache-first fallback)
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  (async () => {
+    const BUCKET    = 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn';
+    const FULL_URL  = BUCKET + '/dawn-loader.js';
+    const LOCAL_URL = './dawn-loader.js';
+    const IDB_KEY   = 'cached_dawn_loader_js';
+
+    // Start animated background
+    if (window.DeviceProfile.allowVortex) window.generateProceduralArt('dawn-loader-bg');
+    try { await window.DAWNStorage.logAccess('app_start', { tier: window.DeviceProfile.tier, online: navigator.onLine, ts: Date.now() }); } catch {}
+
+    const bar        = document.getElementById('load-bar');
+    const status     = document.getElementById('load-status');
+    const modeSelect = document.getElementById('dawn-mode-select');
+    const btnBack    = document.getElementById('btn-back');
+    const btnOnline  = document.getElementById('btn-online');
+    const btnLocal   = document.getElementById('btn-local');
+
+    const setBar    = pct  => { bar.style.width = pct + '%'; };
+    const setStatus = text => { status.textContent = text; };
+
+    function clearErrors() {
+      document.querySelectorAll('#dawn-loader .err').forEach(e => e.remove());
+    }
+    function showError(msg) {
+      console.error('[DAWN bootstrap]', msg);
+      clearErrors();
+      setStatus('');
+      const d = document.createElement('div');
+      d.className = 'err';
+      d.textContent = '❌ ' + msg;
+      document.getElementById('dawn-loader').appendChild(d);
+      bar.style.background = '#c04040';
+    }
+    function injectScript(text) {
+      const el = document.createElement('script');
+      el.textContent = text;
+      document.head.appendChild(el);
+    }
+
+    let _abort = null;
+
+    // Back button — abort any active fetch, UI reset happens at top of loop
+    btnBack.addEventListener('click', () => {
+      if (_abort) { _abort.abort(); _abort = null; }
+    });
+
+    // ── Main loop (supports ← Back at any point) ─────────────────
+    while (true) {
+      // ── Reset to title state ──────────────────────────────────
+      clearErrors();
+      bar.style.background = '#c0a040';
+      btnBack.style.display = 'none';
+      setBar(5); setStatus('Choose play mode…');
+      modeSelect.style.display = 'flex';
+
+      // Wait for mode choice
+      const mode = await new Promise(resolve => {
+        btnOnline.onclick = () => resolve('online');
+        btnLocal.onclick  = () => resolve('local');
+      });
+
+      modeSelect.style.display = 'none';
+      btnBack.style.display    = '';       // show ← Title button during load
+      _abort = new AbortController();
+      const { signal } = _abort;
+
+      try { await window.DAWNStorage.logAccess('mode_select', { mode }); } catch {}
+
+      let done = false;
+
+      // ════════════════════════════════════════════════════════════
+      // PLAY LOCAL
+      // ════════════════════════════════════════════════════════════
+      if (mode === 'local') {
+        setBar(20); setStatus('Loading local script…');
+
+        // 1. IDB saved copy (works fully offline)
+        try {
+          const saved = await window.DAWNStorage.loadAsset(IDB_KEY);
+          if (signal.aborted) continue;
+          if (saved) {
+            setBar(90); setStatus('From saved local copy…');
+            injectScript(saved);
+            setBar(100);
+            await window.DAWNStorage.logAccess('bootstrap_local_idb');
+            console.log('[DAWN] bootstrap from IDB ✓');
+            done = true;
+          }
+        } catch (e) { if (!signal.aborted) console.warn('[DAWN] IDB read failed:', e); }
+
+        // 2. ./dawn-loader.js next to this file
+        if (!done && !signal.aborted) {
+          try {
+            const r = await fetch(LOCAL_URL, { signal });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const text = await r.text();
+            if (!signal.aborted) {
+              setBar(80); setStatus('Starting local…');
+              try { await window.DAWNStorage.saveAsset(IDB_KEY, text, { source: 'local_file', saved: new Date().toISOString() }); } catch {}
+              injectScript(text);
+              setBar(100);
+              await window.DAWNStorage.logAccess('bootstrap_local_file');
+              console.log('[DAWN] bootstrap from local file ✓');
+              done = true;
+            }
+          } catch (e) {
+            if (e.name !== 'AbortError') {
+              showError('Local file not found. Place dawn-loader.js next to this HTML — or run Play Online once. (' + e.message + ')');
+            }
+          }
+        }
+
+      // ════════════════════════════════════════════════════════════
+      // PLAY ONLINE
+      // ════════════════════════════════════════════════════════════
+      } else {
+        setBar(10); setStatus('Checking cache…');
+
+        // 1. Offline Cache API (instant, no network)
+        try {
+          const cached = await window.DAWNLocalAPIs.offlineCache.getAsset(FULL_URL);
+          if (signal.aborted) continue;
+          if (cached) {
+            setBar(70); setStatus('From cache…');
+            injectScript(await cached.text());
+            setBar(100);
+            await window.DAWNStorage.logAccess('bootstrap_cache');
+            console.log('[DAWN] bootstrap from offline cache ✓');
+            done = true;
+          }
+        } catch (e) { if (!signal.aborted) console.warn('[DAWN] Cache read error:', e); }
+
+        // 2. Network fetch
+        if (!done && !signal.aborted) {
+          if (!navigator.onLine) {
+            showError('Offline — open once with internet to cache the game loader.');
+          } else {
+            setBar(30); setStatus('Connecting…');
+            try {
+              const r = await fetch(FULL_URL, { cache: 'no-cache', signal });
+              if (!r.ok) throw new Error('dawn-loader.js → HTTP ' + r.status);
+              const text = await r.text();
+              if (!signal.aborted) {
+                setBar(80); setStatus('Starting…');
+                try { await window.DAWNLocalAPIs.offlineCache.putResponse(FULL_URL, text, 'application/javascript'); }
+                catch (e) { console.warn('[DAWN] Cache API write failed:', e); }
+                try { await window.DAWNStorage.saveAsset(IDB_KEY, text, { source: 'network', url: FULL_URL, saved: new Date().toISOString() }); }
+                catch (e) { console.warn('[DAWN] IDB write failed:', e); }
+                injectScript(text);
+                setBar(100);
+                await window.DAWNStorage.logAccess('bootstrap_network', { url: FULL_URL });
+                console.log('[DAWN] bootstrap from network ✓');
+                done = true;
+              }
+            } catch (e) {
+              if (e.name !== 'AbortError') showError('Load failed: ' + e.message);
+            }
+          }
+        }
+      }
+
+      if (done) break;   // ← success, exit bootstrap loop
+      if (signal.aborted) continue;  // Back was pressed — restart immediately
+
+      // Error state: wait for ← Title before resetting
+      await new Promise(resolve => btnBack.addEventListener('click', resolve, { once: true }));
+    }
+  })();
+  </script>
+
+</body>
+</html>
