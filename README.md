@@ -5,4 +5,5 @@ Status:broken debugging could take awhile
 
 
   download mobile app
-https://app-builder.manus.im/mobile-app-download/UNXboi6fEncoBtciWRt5Ks
+
+https://app-builder.manus.im/mobile-app-download/EyWf6yRRgPhESknPeu4jRz
