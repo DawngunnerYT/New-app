@@ -11,19 +11,39 @@
     *{box-sizing:border-box;margin:0;padding:0}
     html,body,#root{height:100%;height:100dvh;overflow:hidden;background:#040308}
     body{-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
-    #dawn-loader{
+    #dawn-loader {
       position:fixed;inset:0;display:flex;flex-direction:column;
       align-items:center;justify-content:center;background:#040308;
       font-family:'Georgia',serif;color:#c0a040;gap:18px;z-index:9999;
+      display: none; /* Hidden by default */
     }
     #dawn-loader h1{font-size:28px;letter-spacing:6px;color:#e8c060;}
     #dawn-loader .bar-wrap{width:280px;height:4px;background:#1a1408;border-radius:2px;}
     #dawn-loader .bar{height:4px;background:#c0a040;border-radius:2px;width:0%;transition:width 0.3s;}
     #dawn-loader .status{font-size:11px;color:#6a5020;letter-spacing:2px;text-transform:uppercase;}
     #dawn-loader .err{color:#c04040;font-size:12px;max-width:320px;text-align:center;line-height:1.6;}
+
+    #env-selector {
+      position:fixed;inset:0;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;background:#040308;
+      font-family:'Georgia',serif;color:#c0a040;gap:18px;z-index:10000;
+    }
+    #env-selector h1 { font-size:22px; letter-spacing:4px; color:#e8c060; font-family: 'Cinzel', serif; }
+    #env-selector .env-btn {
+      font-family:"'Cinzel',serif"; font-size:15px; padding:13px 52px;
+      background:linear-gradient(135deg,#160e04,#0c0a06); border:1px solid #4a3418;
+      color:#e0c060; border-radius:2px; cursor:pointer; letter-spacing:3px; min-width:220px; text-align: center;
+    }
+    #env-selector .env-btn:hover { filter: brightness(1.2); }
   </style>
 </head>
 <body>
+  <div id="env-selector">
+    <h1>CHOOSE ENVIRONMENT</h1>
+    <button class="env-btn" onclick="launch('stable')">STABLE</button>
+    <button class="env-btn" onclick="launch('test')">TEST</button>
+  </div>
+
   <div id="dawn-loader">
     <h1>DAWN</h1>
     <div class="bar-wrap"><div class="bar" id="load-bar"></div></div>
@@ -66,7 +86,6 @@
 
     const tier = canRunHeavy ? 'full' : (!mobile && cores >= 2) ? 'lite' : 'minimal';
 
-    // Tag <html> so CSS can react: html[data-tier="minimal"] .gpu-only { display:none }
     document.documentElement.setAttribute('data-tier',    tier);
     document.documentElement.setAttribute('data-mobile',  mobile);
     document.documentElement.setAttribute('data-android', /Android/i.test(navigator.userAgent));
@@ -76,11 +95,10 @@
       isAndroid : /Android/i.test(navigator.userAgent),
       isIOS     : /iPhone|iPad|iPod/i.test(navigator.userAgent),
       cores, ram, goodGPU,
-      // Gates — cloud APIs are always allowed; only local heavy compute is gated
       allowLocalLLM  : tier === 'full' || tier === 'lite',
       allowSDXL      : tier === 'full',
       allowGPUTasks  : tier === 'full',
-      allowCloudAPI  : true,   // ← always true; phone does zero work for API calls
+      allowCloudAPI  : true,
     };
 
     console.log('[DAWN] Device profile →', profile);
@@ -90,12 +108,51 @@
 
   <!-- ░░ DAWN Bootstrap ░░ -->
   <script>
-  (async () => {
-    const BUCKET = 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn';
+  const environments = {
+    stable: {
+      supabaseUrl: 'https://impbfulyppuewichpsel.supabase.co',
+      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcGJmdWx5cHB1ZXdpY2hwc2VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNjEzMDQsImV4cCI6MjA4ODczNzMwNH0.iw3czzP5tggENUZCRiTl-sIZyIDvyKK82js-a5QH0d8',
+      bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/stable'
+    },
+    test: {
+      // This environment will fetch keys from dawn-api-keys.js as before
+      bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn'
+    }
+  };
+
+  async function launch(env) {
+    document.getElementById('env-selector').style.display = 'none';
+    document.getElementById('dawn-loader').style.display = 'flex';
+
+    const config = environments[env];
+    if (!config) {
+      console.error('Invalid environment specified:', env);
+      alert('Invalid environment specified.');
+      return;
+    }
+
+    // Set keys for the stable env. For test env, they will be loaded by dawn-api-keys.js
+    if (config.supabaseUrl) window.SUPABASE_URL = config.supabaseUrl;
+    if (config.supabaseAnonKey) window.SUPABASE_ANON_KEY = config.supabaseAnonKey;
+    
     try {
-      const r = await fetch(BUCKET + '/dawn-loader.js', { cache: 'no-cache' });
+      const BUCKET = config.bucket;
+      const loaderJsPath = (env === 'stable') ? '/dawn-loader.js' : '/dawn-loader.js'; // In case names differ
+      
+      const r = await fetch(BUCKET + loaderJsPath, { cache: 'no-cache' });
       if (!r.ok) throw new Error('dawn-loader.js → HTTP ' + r.status);
       const el = document.createElement('script');
+      
+      // For the 'test' env, we need to load dawn-api-keys.js first.
+      if (env === 'test') {
+        const keysRes = await fetch(BUCKET + '/services/ai-core/dawn-api-keys.js', { cache: 'no-cache' });
+        if (!keysRes.ok) throw new Error('dawn-api-keys.js → HTTP ' + keysRes.status);
+        const keysText = await keysRes.text();
+        const keysEl = document.createElement('script');
+        keysEl.textContent = keysText;
+        document.head.appendChild(keysEl);
+      }
+
       el.textContent = await r.text();
       document.head.appendChild(el);
     } catch (e) {
@@ -107,7 +164,7 @@
       document.getElementById('dawn-loader').appendChild(d);
       document.getElementById('load-bar').style.background = '#c04040';
     }
-  })();
+  }
   </script>
 </body>
 </html>
