@@ -135,7 +135,7 @@
       // Each environment's loader is fully self-contained:
       // it knows its own bucket URL, fetches its own keys, and loads its own modules.
       // index.html never needs to modify the loader — just fetch and run it.
-      const r = await fetch(config.bucket + '/' + config.loader, { cache: 'no-cache' });
+      const r = await fetch(config.bucket + '/' + config.loader + '?v=' + Date.now(), { cache: 'no-cache' });
       if (!r.ok) throw new Error(config.loader + ' → HTTP ' + r.status);
 
       const loaderScriptEl = document.createElement('script');
