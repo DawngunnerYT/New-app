@@ -115,7 +115,6 @@
       bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/stable'
     },
     test: {
-      // This environment will fetch keys from dawn-api-keys.js as before
       bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn'
     }
   };
@@ -130,31 +129,45 @@
       alert('Invalid environment specified.');
       return;
     }
-
-    // Set keys for the stable env. For test env, they will be loaded by dawn-api-keys.js
-    if (config.supabaseUrl) window.SUPABASE_URL = config.supabaseUrl;
-    if (config.supabaseAnonKey) window.SUPABASE_ANON_KEY = config.supabaseAnonKey;
     
     try {
       const BUCKET = config.bucket;
-      const loaderJsPath = (env === 'stable') ? '/dawn-loader.js' : '/dawn-loader.js'; // In case names differ
-      
-      const r = await fetch(BUCKET + loaderJsPath, { cache: 'no-cache' });
+      const r = await fetch(BUCKET + '/dawn-loader.js', { cache: 'no-cache' });
       if (!r.ok) throw new Error('dawn-loader.js → HTTP ' + r.status);
-      const el = document.createElement('script');
       
-      // For the 'test' env, we need to load dawn-api-keys.js first.
-      if (env === 'test') {
-        const keysRes = await fetch(BUCKET + '/services/ai-core/dawn-api-keys.js', { cache: 'no-cache' });
-        if (!keysRes.ok) throw new Error('dawn-api-keys.js → HTTP ' + keysRes.status);
-        const keysText = await keysRes.text();
-        const keysEl = document.createElement('script');
-        keysEl.textContent = keysText;
-        document.head.appendChild(keysEl);
-      }
+      let loaderText = await r.text();
 
-      el.textContent = await r.text();
-      document.head.appendChild(el);
+      // For STABLE, we set keys globally and modify the loader script to use the stable bucket
+      // and skip its own key-loading step.
+      if (env === 'stable') {
+        window.SUPABASE_URL = config.supabaseUrl;
+        window.SUPABASE_ANON_KEY = config.supabaseAnonKey;
+        
+        // 1. Replace the hardcoded 'dawn' bucket URL inside the loader script with our 'stable' one.
+        loaderText = loaderText.replace(
+          "const BUCKET = 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn'",
+          `const BUCKET = '${BUCKET}'`
+        );
+        
+        // 2. Surgically remove the key-loading block from the loader script.
+        const keyLoaderStart = "bar.style.width = '5%';";
+        const keyLoaderEnd = "document.head.appendChild(keysEl);";
+        const startIndex = loaderText.indexOf(keyLoaderStart);
+        const endIndex = loaderText.indexOf(keyLoaderEnd);
+
+        if (startIndex !== -1 && endIndex !== -1) {
+          loaderText = loaderText.substring(0, startIndex) + loaderText.substring(endIndex + keyLoaderEnd.length);
+        } else {
+          console.warn('[DAWN] Could not find key-loading block to remove from dawn-loader.js.');
+        }
+      }
+      
+      // For TEST, we do nothing to the script. It runs as-is and fetches its own keys from its hardcoded 'dawn' bucket.
+
+      const loaderScriptEl = document.createElement('script');
+      loaderScriptEl.textContent = loaderText;
+      document.head.appendChild(loaderScriptEl);
+
     } catch (e) {
       console.error('[DAWN bootstrap]', e);
       document.getElementById('load-status').textContent = '';
