@@ -1,7 +1,7 @@
 Game currently being worked on
 road work ahead 
 
-Status:broken debugging could take awhile (also breaking it on prurpose to rebuild parts that didnt implement correctly)
+Status:stableish not fully developed demo of called stable test is always unstable not recomended conecting to that one.
 
 
   download mobile app currently android only.
