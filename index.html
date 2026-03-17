@@ -110,8 +110,6 @@
   <script>
   const environments = {
     stable: {
-      supabaseUrl: 'https://impbfulyppuewichpsel.supabase.co',
-      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcGJmdWx5cHB1ZXdpY2hwc2VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNjEzMDQsImV4cCI6MjA4ODczNzMwNH0.iw3czzP5tggENUZCRiTl-sIZyIDvyKK82js-a5QH0d8',
       bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/stable'
     },
     test: {
@@ -129,43 +127,16 @@
       alert('Invalid environment specified.');
       return;
     }
-    
+
     try {
-      const BUCKET = config.bucket;
-      const r = await fetch(BUCKET + '/dawn-loader.js', { cache: 'no-cache' });
+      // Each environment's dawn-loader.js is fully self-contained:
+      // it knows its own bucket URL, fetches its own keys, and loads its own modules.
+      // index.html never needs to modify the loader — just fetch and run it.
+      const r = await fetch(config.bucket + '/dawn-loader.js', { cache: 'no-cache' });
       if (!r.ok) throw new Error('dawn-loader.js → HTTP ' + r.status);
-      
-      let loaderText = await r.text();
-
-      // For STABLE, we set keys globally and modify the loader script to use the stable bucket
-      // and skip its own key-loading step.
-      if (env === 'stable') {
-        window.SUPABASE_URL = config.supabaseUrl;
-        window.SUPABASE_ANON_KEY = config.supabaseAnonKey;
-        
-        // 1. Replace the hardcoded 'dawn' bucket URL inside the loader script with our 'stable' one.
-        loaderText = loaderText.replace(
-          "const BUCKET = 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn'",
-          `const BUCKET = '${BUCKET}'`
-        );
-        
-        // 2. Surgically remove the key-loading block from the loader script.
-        const keyLoaderStart = "bar.style.width = '5%';";
-        const keyLoaderEnd = "document.head.appendChild(keysEl);";
-        const startIndex = loaderText.indexOf(keyLoaderStart);
-        const endIndex = loaderText.indexOf(keyLoaderEnd);
-
-        if (startIndex !== -1 && endIndex !== -1) {
-          loaderText = loaderText.substring(0, startIndex) + loaderText.substring(endIndex + keyLoaderEnd.length);
-        } else {
-          console.warn('[DAWN] Could not find key-loading block to remove from dawn-loader.js.');
-        }
-      }
-      
-      // For TEST, we do nothing to the script. It runs as-is and fetches its own keys from its hardcoded 'dawn' bucket.
 
       const loaderScriptEl = document.createElement('script');
-      loaderScriptEl.textContent = loaderText;
+      loaderScriptEl.textContent = await r.text();
       document.head.appendChild(loaderScriptEl);
 
     } catch (e) {
