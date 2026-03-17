@@ -110,10 +110,12 @@
   <script>
   const environments = {
     stable: {
-      bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/stable'
+      bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/stable',
+      loader: 'stable-loader.js'
     },
     test: {
-      bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn'
+      bucket: 'https://impbfulyppuewichpsel.supabase.co/storage/v1/object/public/dawn',
+      loader: 'dawn-loader.js'
     }
   };
 
@@ -129,11 +131,11 @@
     }
 
     try {
-      // Each environment's dawn-loader.js is fully self-contained:
+      // Each environment's loader is fully self-contained:
       // it knows its own bucket URL, fetches its own keys, and loads its own modules.
       // index.html never needs to modify the loader — just fetch and run it.
-      const r = await fetch(config.bucket + '/dawn-loader.js', { cache: 'no-cache' });
-      if (!r.ok) throw new Error('dawn-loader.js → HTTP ' + r.status);
+      const r = await fetch(config.bucket + '/' + config.loader, { cache: 'no-cache' });
+      if (!r.ok) throw new Error(config.loader + ' → HTTP ' + r.status);
 
       const loaderScriptEl = document.createElement('script');
       loaderScriptEl.textContent = await r.text();
