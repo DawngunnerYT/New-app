@@ -8,4 +8,5 @@ https://dawngunneryt.github.io/New-app/
 
   download mobile app currently android only. Not stable app. 
 
-https://app-builder.manus.im/mobile-app-download/EyWf6yRRgPhESknPeu4jRz
+
+https://www.dropbox.com/scl/fi/ey49enz9091zhuh41fzh3/rpg-webview-app-v1_0_0.apk?rlkey=qfcgyskkjncqm7933sqhbs5uo&st=gtbkn3ky&dl=0
