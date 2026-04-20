@@ -4,7 +4,7 @@ road work ahead
 Status:stableish not fully developed demo on stable. test is always unstable not recomended conecting to that one.
 
 Website
-https://dawngunneryt.github.io/New-app/ 
+https://dawngunneryt.github.io/Dawn-AI-RPG-work-in-progress/ 
 
   download mobile app currently android only. Not stable app. 
 
